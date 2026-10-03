@@ -1,0 +1,5 @@
+audit_date,location,volunteer,food_type,weight_kg,meals_served,notes
+2026-09-28,Central Campus Canteen,Asha R,Veg Biryani,35.0,90,Valid line
+2026/09/29,Hostel 1 Dining Hall,Vikram S,Dal Rice,25.0,60,Line 3 bad date format
+2026-09-29,Science Block Cafeteria,Priya M,Sandwiches,-5.0,40,Line 4 negative weight
+2026-09-30,Engineering Annex Kitchen,Rohan K,Chapati,15.2,invalid_meals,Line 5 non-integer meals

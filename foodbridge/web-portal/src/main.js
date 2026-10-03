@@ -1,28 +1,37 @@
 import { createApi } from "./api.js";
 import { renderBoard, renderImpact } from "./dashboard.js";
+import { initAuth } from "./auth.js";
 
 const $ = (id) => document.getElementById(id);
-const ROLE_HELP = {
-  donor: "Post surplus food. Volunteers nearby are notified by the board.",
-  volunteer: "Accept a pickup, collect the food, and bring it to people who need it.",
-  ngo: "Confirm when collected food reaches your community.",
-};
 
-let user = JSON.parse(localStorage.getItem("fb_user") || "null");
 let listings = [];
+let user = null;
+
 const api = createApi(() => user);
 
-function toast(msg) { const t = $("toast"); t.textContent = msg; setTimeout(() => (t.textContent = ""), 4000); }
-
-function renderSession() {
-  $("join").hidden = !!user;
-  $("session").hidden = !user;
-  $("post").hidden = user?.role !== "donor";
-  if (user) {
-    $("who").textContent = `${user.name} (${user.role}${user.org ? `, ${user.org}` : ""})`;
-    $("role-help").textContent = ROLE_HELP[user.role];
-  }
+function toast(msg, type = "info") {
+  const t = $("toast");
+  if (!t) return;
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  setTimeout(() => {
+    if (t.textContent === msg) t.textContent = "";
+  }, 4000);
 }
+
+// Initialize Authentication Module
+const authManager = initAuth({
+  api,
+  onUserChange: (newUser) => {
+    user = newUser;
+    const postEl = $("post");
+    if (postEl) {
+      postEl.hidden = user?.role !== "donor";
+    }
+    refresh();
+  },
+  toast,
+});
 
 async function refresh() {
   try {
@@ -31,44 +40,96 @@ async function refresh() {
       api(`/api/impact/monthly${user?.role === "donor" ? `?donorId=${user.id}` : ""}`),
       api("/api/impact/summary"),
     ]);
-    listings = list;
+
+    listings = Array.isArray(list) ? list : [];
     renderBoard($("board"), listings, user);
-    renderImpact($("impact"), monthly, user);
-    $("total").textContent = `${sum.meals_diverted} meals diverted in total`;
-  } catch (e) { toast(e.message); }
+    renderImpact($("impact"), monthly, user, sum);
+  } catch (e) {
+    // If listings fail to fetch, render empty state gracefully
+    listings = [];
+    renderBoard($("board"), [], user);
+  }
 }
 
-$("join").addEventListener("submit", async (e) => {
+// Donor: Post surplus food form submission
+$("postForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const f = new FormData(e.target);
-  try {
-    user = await api("/api/users", { method: "POST", body: Object.fromEntries(f) });
-    localStorage.setItem("fb_user", JSON.stringify(user));
-    renderSession(); refresh();
-  } catch (err) { toast(err.message); }
-});
+  const form = e.target;
+  const f = Object.fromEntries(new FormData(form));
 
-$("logout").addEventListener("click", () => { localStorage.removeItem("fb_user"); user = null; renderSession(); refresh(); });
+  const meals = Number(f.meals);
+  const expiresInMinutes = Number(f.expiresInMinutes);
 
-$("post").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const f = Object.fromEntries(new FormData(e.target));
+  if (!f.title?.trim() || !f.pickupAddress?.trim()) {
+    return toast("Please fill in all required listing fields.", "error");
+  }
+  if (!Number.isInteger(meals) || meals < 1) {
+    return toast("Meals must be a whole number >= 1.", "error");
+  }
+  if (!Number.isFinite(expiresInMinutes) || expiresInMinutes < 15 || expiresInMinutes > 1440) {
+    return toast("Expiry duration must be between 15 and 1440 minutes (24 hours).", "error");
+  }
+
   try {
     await api("/api/listings", { method: "POST", body: f });
-    e.target.reset(); toast("Listing posted."); refresh();
-  } catch (err) { toast(err.message); }
+    form.reset();
+    toast("Surplus food listing published successfully!", "success");
+    await refresh();
+  } catch (err) {
+    toast(err.message || "Failed to post listing", "error");
+  }
 });
 
-$("board").addEventListener("click", async (e) => {
+// Board Actions Delegation (Claim, Collect, Distribute)
+$("board")?.addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
+
+  const id = b.dataset.id;
+  const act = b.dataset.act;
+
+  if (!user) {
+    authManager.openAuthModal("login");
+    return;
+  }
+
+  b.disabled = true;
+  b.textContent = "Processing...";
+
   try {
-    await api(`/api/listings/${b.dataset.id}/${b.dataset.act}`, { method: "POST" });
-    refresh();
-  } catch (err) { toast(err.message); refresh(); }
+    await api(`/api/listings/${id}/${act}`, { method: "POST" });
+    const actLabels = {
+      claim: "Pickup claimed by courier!",
+      collect: "Marked as collected from donor!",
+      distribute: "Distribute confirmed at NGO center!",
+    };
+    toast(actLabels[act] || "Status updated!", "success");
+    await refresh();
+  } catch (err) {
+    toast(err.message, "error");
+    await refresh();
+  }
 });
 
-renderSession();
+// Preset button handlers for expiresInMinutes
+document.addEventListener("click", (e) => {
+  if (e.target.matches(".preset-btn")) {
+    const val = e.target.dataset.val;
+    const numInput = $("expiresInMinutesInput");
+    if (numInput) numInput.value = val;
+  }
+});
+
+// Timers:
+// 1) Recompute local countdowns every 30s
+setInterval(() => {
+  renderBoard($("board"), listings, user);
+}, 30_000);
+
+// 2) Refresh backend state every 60s
+setInterval(() => {
+  refresh();
+}, 60_000);
+
+// Initial Boot
 refresh();
-setInterval(() => renderBoard($("board"), listings, user), 30_000); // tick countdowns
-setInterval(refresh, 60_000);                                       // pull new data

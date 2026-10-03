@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { attachUser, requireRole, createUser } from "./controllers/userController.js";
+import { attachUser, requireRole, createUser, getUsers, loginUser } from "./controllers/userController.js";
 import {
   listListings, createListing, claimListing, collectListing,
   distributeListing, monthlyImpact, pipelineSummary,
@@ -17,7 +17,10 @@ app.use(attachUser);
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 // --- Core: surplus food pipeline (Available -> Claimed -> Collected -> Distributed) ---
+app.get("/api/users", getUsers);
 app.post("/api/users", createUser);
+app.post("/api/users/login", loginUser);
+
 app.get("/api/listings", listListings);
 app.post("/api/listings", requireRole("donor"), createListing);
 app.post("/api/listings/:id/claim", requireRole("volunteer"), claimListing);
