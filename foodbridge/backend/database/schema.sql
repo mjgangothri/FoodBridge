@@ -46,8 +46,7 @@ CREATE TABLE IF NOT EXISTS listings (
   notes            TEXT,
   expires_at       TIMESTAMPTZ NOT NULL,
   status           VARCHAR(12) NOT NULL DEFAULT 'available'
-                   CONSTRAINT listings_status_check
-                   CHECK (status IN ('available','claimed','collected','distributed','cancelled')),
+                   CHECK (status IN ('available','claimed','collected','distributed')),
   volunteer_id     INTEGER REFERENCES users(id),
   ngo_id           INTEGER REFERENCES users(id),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
