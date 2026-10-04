@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "description": "FoodBridge: connects surplus food from restaurants, canteens and hostels with volunteers and NGOs, with an expiry countdown and a side game.",
   "scripts": {
+    "build": "npm --prefix web-portal run build",
+    "build:portal": "npm --prefix web-portal run build",
+    "dev": "npm --prefix web-portal run dev",
+    "dev:all": "npm --prefix backend run dev & npm --prefix web-portal run dev",
     "install:all": "npm --prefix backend install && npm --prefix game-client install && npm --prefix web-portal install",
     "dev:backend": "npm --prefix backend run dev",
     "dev:game": "npm --prefix game-client run dev",

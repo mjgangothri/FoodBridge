@@ -1,8 +1,8 @@
 import express from "express";
 import cors from "cors";
-import { attachUser, requireRole, createUser } from "./controllers/userController.js";
+import { attachUser, requireRole, createUser, getUsers, loginUser } from "./controllers/userController.js";
 import {
-  listListings, createListing, updateListing, cancelListing, claimListing, collectListing,
+  listListings, createListing, claimListing, collectListing,
   distributeListing, monthlyImpact, pipelineSummary,
 } from "./controllers/listingController.js";
 import { submitScore, getLeaderboard } from "./controllers/scoreController.js";
@@ -17,11 +17,12 @@ app.use(attachUser);
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 // --- Core: surplus food pipeline (Available -> Claimed -> Collected -> Distributed) ---
+app.get("/api/users", getUsers);
 app.post("/api/users", createUser);
+app.post("/api/users/login", loginUser);
+
 app.get("/api/listings", listListings);
 app.post("/api/listings", requireRole("donor"), createListing);
-app.put("/api/listings/:id", requireRole("donor"), updateListing);
-app.post("/api/listings/:id/cancel", requireRole("donor"), cancelListing);
 app.post("/api/listings/:id/claim", requireRole("volunteer"), claimListing);
 app.post("/api/listings/:id/collect", requireRole("volunteer"), collectListing);
 app.post("/api/listings/:id/distribute", requireRole("ngo"), distributeListing);
